@@ -562,3 +562,47 @@ console.log('[Learned Embeddings]', list.map(function(x){ return JSON.stringify(
 }
 };
 console.log('[RandomDAG-LM v2] loaded. Commands: AI.search() / AI.evolve() / AI.generate("The ") / AI.embed() / AI.download()');
+function uploadModel(){
+  return new Promise(function(resolve){
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.style.display = 'none';
+    input.onchange = function(e){
+      var file = e.target.files && e.target.files.item(0);
+      if(!file){ console.warn('[upload] canceled'); resolve(null); return; }
+      var reader = new FileReader();
+      reader.onload = function(ev){
+        try {
+          var obj = JSON.parse(ev.target.result);
+          var dag = obj.dag ? obj.dag : obj;
+          if(!dag || !dag.nodes || !dag.outputs){
+            console.error('[upload] invalid model JSON');
+            resolve(null);
+            return;
+          }
+          _currentDag = dag;
+          _currentPruned = prune(_currentDag);
+          localStorage.setItem('randomDagLM_best', JSON.stringify({
+            timestamp: obj.timestamp || Date.now(),
+            iter: obj.iter || 0,
+            trainScore: obj.trainScore || obj.trainMSE || 0,
+            valScore: obj.valScore || obj.valMSE || 0,
+            dag: dag
+          }));
+          console.log('[upload] loaded! nodes=' + dag.nodes.length + ' reachable=' + _currentPruned.length + ' train=' + Number(obj.trainScore || obj.trainMSE || 0).toFixed(2));
+          resolve(_currentDag);
+        } catch(err){
+          console.error('[upload] parse failed:', err);
+          resolve(null);
+        }
+      };
+      reader.readAsText(file);
+    };
+    document.body.appendChild(input);
+    input.click();
+    setTimeout(function(){ if(input.parentNode) input.parentNode.removeChild(input); }, 60000);
+  });
+}
+
+AI.upload = uploadModel;
